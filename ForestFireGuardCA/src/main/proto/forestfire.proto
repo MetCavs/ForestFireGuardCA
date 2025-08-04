@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package forestfireguard;
+option java_multiple_files = true;
+option java_package = "com.forestfireguardca";
+option java_outer_classname = "ForestFireProto";
+
+// Fire Detection Service (Unary RPC)
+service FireDetectionService {
+  rpc CheckFire(FireSensorRequest) returns (FireAlert);
+}
+
+// Fire Alert Dispatcher (Client-streaming RPC)
+service FireAlertDispatcherService {
+  rpc SendAlerts(stream FireAlert) returns (DispatchStatus);
+}
+
+// Live Sensor Feed (Server + BiDi streaming RPC)
+service LiveSensorFeedService {
+  rpc StreamSensorData(SensorRequest) returns (stream SensorData); // server streaming
+  rpc MonitorSensors(stream SensorRequest) returns (stream SensorData); // bidirectional
+}
+
+// Request from a sensor for checking fire
+message FireSensorRequest {
+  string sensor_id = 1;
+  float temperature = 2;
+  bool smoke_detected = 3;
+  string location = 4;
+  int64 timestamp = 5;
+  string user_note = 6; // optional comment
+}
+
+// Response after checking fire
+message FireAlert {
+  string sensor_id = 1;
+  bool fire_detected = 2;
+  string alert_level = 3;
+  string message = 4;
+  int64 timestamp = 5;
+}
+
+// Final dispatch confirmation
+message DispatchStatus {
+  bool success = 1;
+  string details = 2;
+}
+
+// Sensor live request (for stream & monitor)
+message SensorRequest {
+  string sensor_id = 1;
+  string location = 2;
+}
+
+// Sensor data used in live feed
+message SensorData {
+  string sensor_id = 1;
+  float temperature = 2;
+  bool smoke_detected = 3;
+  string location = 4;
+  int64 timestamp = 5;
+}
