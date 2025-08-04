@@ -14,13 +14,14 @@ public class ForestGUI {
 
     public ForestGUI() {
         try {
+            // main loop: keep asking the user until they type "exit"
             while (true) {
-                String action = getActionFromUser();
+                String action = getActionFromUser(); // ask user what they want to do
                 if (action == null) break;
 
                 action = action.trim().toLowerCase();
 
-               
+                // call the correct method based on input
                 if (action.equals("check fire")) {
                     handleCheckFire();
                 } else if (action.equals("stream sensor")) {
@@ -28,7 +29,7 @@ public class ForestGUI {
                 } else if (action.equals("send alerts")) {
                     handleSendAlerts();
                 } else if (action.equals("exit")) {
-                    break;
+                    break; // exit the app
                 } else {
                     JOptionPane.showMessageDialog(null, "Unknown command: " + action);
                 }
@@ -39,58 +40,62 @@ public class ForestGUI {
         }
     }
 
-   private String getActionFromUser() {
-    // Create label section
-    JPanel leftPanel = new JPanel();
-    leftPanel.setLayout(new BoxLayout(leftPanel, BoxLayout.Y_AXIS));
-    leftPanel.add(new JLabel("What would you like to do?"));
-    leftPanel.add(new JLabel("- check fire"));
-    leftPanel.add(new JLabel("- stream sensor"));
-    leftPanel.add(new JLabel("- send alerts"));
-    leftPanel.add(new JLabel("- exit"));
+    private String getActionFromUser() {
+        // left side with text and input field
+        JPanel leftPanel = new JPanel();
+        leftPanel.setLayout(new BoxLayout(leftPanel, BoxLayout.Y_AXIS));
+        leftPanel.add(new JLabel("What would you like to do?"));
+        leftPanel.add(new JLabel("- check fire"));
+        leftPanel.add(new JLabel("- stream sensor"));
+        leftPanel.add(new JLabel("- send alerts"));
+        leftPanel.add(new JLabel("- exit"));
 
-    JTextField inputField = new JTextField();
-    leftPanel.add(Box.createVerticalStrut(10));
-    leftPanel.add(inputField);
+        JTextField inputField = new JTextField();
+        leftPanel.add(Box.createVerticalStrut(10));
+        leftPanel.add(inputField);
 
-    // Create right panel with icon
-    JPanel rightPanel = new JPanel();
-    ImageIcon icon = new ImageIcon("src/main/image/icon.png");
-    Image scaled = icon.getImage().getScaledInstance(64, 64, Image.SCALE_SMOOTH);
-    JLabel iconLabel = new JLabel(new ImageIcon(scaled));
-    rightPanel.add(iconLabel);
+        // right side with app icon
+        JPanel rightPanel = new JPanel();
+        ImageIcon icon = new ImageIcon("src/main/image/icon.png");
+        Image scaled = icon.getImage().getScaledInstance(64, 64, Image.SCALE_SMOOTH);
+        JLabel iconLabel = new JLabel(new ImageIcon(scaled));
+        rightPanel.add(iconLabel);
 
-    // Combine left and right panels
-    JPanel fullPanel = new JPanel();
-    fullPanel.setLayout(new BoxLayout(fullPanel, BoxLayout.X_AXIS));
-    fullPanel.add(leftPanel);
-    fullPanel.add(Box.createHorizontalStrut(15));
-    fullPanel.add(rightPanel);
+        // combine left and right panels
+        JPanel fullPanel = new JPanel();
+        fullPanel.setLayout(new BoxLayout(fullPanel, BoxLayout.X_AXIS));
+        fullPanel.add(leftPanel);
+        fullPanel.add(Box.createHorizontalStrut(15));
+        fullPanel.add(rightPanel);
 
-    int result = JOptionPane.showConfirmDialog(null, fullPanel, "ForestFireGuard",
-            JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        // show the input dialog
+        int result = JOptionPane.showConfirmDialog(null, fullPanel, "ForestFireGuard",
+                JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
 
-    if (result == JOptionPane.OK_OPTION) {
-        return inputField.getText().trim().toLowerCase();
-    } else {
-        return "exit";
+        if (result == JOptionPane.OK_OPTION) {
+            return inputField.getText().trim().toLowerCase();
+        } else {
+            return "exit"; // treat cancel as exit
+        }
     }
-}
-
 
     private void handleCheckFire() {
         try {
+            // discover fire detection service
             ServiceInfo serviceInfo = discoverService("_fire._tcp.local.", "FireDetection");
             if (serviceInfo == null) return;
 
+            // connect to gRPC server
             ManagedChannel channel = ManagedChannelBuilder
                     .forAddress(serviceInfo.getHostAddresses()[0], serviceInfo.getPort())
                     .usePlaintext()
                     .build();
 
+            // create the stub
             FireDetectionServiceGrpc.FireDetectionServiceBlockingStub stub =
                     FireDetectionServiceGrpc.newBlockingStub(channel);
 
+            // build the request
             FireSensorRequest request = FireSensorRequest.newBuilder()
                     .setSensorId("sensor-101")
                     .setLocation("Sector-A")
@@ -100,115 +105,116 @@ public class ForestGUI {
                     .setUserNote("Auto-check")
                     .build();
 
+            // call the service and get response
             FireAlert response = stub.checkFire(request);
 
+            // show result in a popup
             JOptionPane.showMessageDialog(null,
                     "Sensor: " + response.getSensorId() +
                             "\nFire Detected: " + response.getFireDetected() +
                             "\nAlert Level: " + response.getAlertLevel() +
                             "\nMessage: " + response.getMessage());
 
-            channel.shutdown();
+            channel.shutdown(); // close the connection
         } catch (Exception e) {
             JOptionPane.showMessageDialog(null, "Check Fire failed.");
         }
     }
 
     private void handleStreamSensor() {
-    new Thread(() -> {
-        try {
-            // first we try to discover the SensorFeed service
-            ServiceInfo serviceInfo = discoverService("_feed._tcp.local.", "SensorFeed");
-            if (serviceInfo == null) {
-                JOptionPane.showMessageDialog(null, "SensorFeed service not found.");
-                return;
+        new Thread(() -> {
+            try {
+                // discover the live sensor feed service
+                ServiceInfo serviceInfo = discoverService("_feed._tcp.local.", "SensorFeed");
+                if (serviceInfo == null) {
+                    JOptionPane.showMessageDialog(null, "SensorFeed service not found.");
+                    return;
+                }
+
+                // ask user to select sensor ID
+                String sensorId = (String) JOptionPane.showInputDialog(
+                        null,
+                        "Select Sensor ID:",
+                        "Sensor Stream",
+                        JOptionPane.QUESTION_MESSAGE,
+                        null,
+                        new String[]{"sensor-101", "sensor-202", "sensor-303"},
+                        "sensor-101"
+                );
+                if (sensorId == null) return;
+
+                // ask user to select location
+                String location = (String) JOptionPane.showInputDialog(
+                        null,
+                        "Select Sensor Location:",
+                        "Sensor Location",
+                        JOptionPane.QUESTION_MESSAGE,
+                        null,
+                        new String[]{"Sector-A", "Sector-B", "Sector-C"},
+                        "Sector-A"
+                );
+                if (location == null) return;
+
+                // connect to the server
+                ManagedChannel channel = ManagedChannelBuilder
+                        .forAddress(serviceInfo.getHostAddresses()[0], serviceInfo.getPort())
+                        .usePlaintext()
+                        .build();
+
+                // create the stub
+                LiveSensorFeedServiceGrpc.LiveSensorFeedServiceBlockingStub stub =
+                        LiveSensorFeedServiceGrpc.newBlockingStub(channel);
+
+                // build the request
+                SensorRequest request = SensorRequest.newBuilder()
+                        .setSensorId(sensorId)
+                        .setLocation(location)
+                        .build();
+
+                // create live feed window
+                JTextArea textArea = new JTextArea();
+                textArea.setEditable(false);
+                JFrame frame = new JFrame("Live Sensor Feed");
+                frame.add(new JScrollPane(textArea));
+                frame.setSize(400, 300);
+                frame.setLocationRelativeTo(null);
+                frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+                frame.setVisible(true);
+
+                // receive data from server
+                stub.streamSensorData(request).forEachRemaining(data -> {
+                    String line = "Sensor: " + data.getSensorId() +
+                            " | Temp: " + data.getTemperature() +
+                            " | Smoke: " + data.getSmokeDetected() +
+                            " | Time: " + data.getTimestamp() + "\n";
+                    SwingUtilities.invokeLater(() -> textArea.append(line));
+                });
+
+                channel.shutdown();
+            } catch (Exception e) {
+                e.printStackTrace();
+                JOptionPane.showMessageDialog(null, "An error occurred while streaming sensor data.");
             }
-
-            // let the user select sensor id
-            String sensorId = (String) JOptionPane.showInputDialog(
-                    null,
-                    "Select Sensor ID:",
-                    "Sensor Stream",
-                    JOptionPane.QUESTION_MESSAGE,
-                    null,
-                    new String[]{"sensor-101", "sensor-202", "sensor-303"},
-                    "sensor-101"
-            );
-
-            if (sensorId == null) return; // user canceled
-
-            // let the user select location
-            String location = (String) JOptionPane.showInputDialog(
-                    null,
-                    "Select Sensor Location:",
-                    "Sensor Location",
-                    JOptionPane.QUESTION_MESSAGE,
-                    null,
-                    new String[]{"Sector-A", "Sector-B", "Sector-C"},
-                    "Sector-A"
-            );
-
-            if (location == null) return; // user canceled
-
-            // open channel with host/port from jmDNS result
-            ManagedChannel channel = ManagedChannelBuilder
-                    .forAddress(serviceInfo.getHostAddresses()[0], serviceInfo.getPort())
-                    .usePlaintext()
-                    .build();
-
-            // create stub to call server-streaming RPC
-            LiveSensorFeedServiceGrpc.LiveSensorFeedServiceBlockingStub stub =
-                    LiveSensorFeedServiceGrpc.newBlockingStub(channel);
-
-            // build request using selected values
-            SensorRequest request = SensorRequest.newBuilder()
-                    .setSensorId(sensorId)
-                    .setLocation(location)
-                    .build();
-
-            // create window to display the live data
-            JTextArea textArea = new JTextArea();
-            textArea.setEditable(false);
-            JFrame frame = new JFrame("Live Sensor Feed");
-            frame.add(new JScrollPane(textArea));
-            frame.setSize(400, 300);
-            frame.setLocationRelativeTo(null);
-            frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-            frame.setVisible(true);
-
-            // start receiving streamed data from the server
-            stub.streamSensorData(request).forEachRemaining(data -> {
-                String line = "Sensor: " + data.getSensorId() +
-                        " | Temp: " + data.getTemperature() +
-                        " | Smoke: " + data.getSmokeDetected() +
-                        " | Time: " + data.getTimestamp() + "\n";
-
-                SwingUtilities.invokeLater(() -> textArea.append(line));
-            });
-
-            channel.shutdown();
-
-        } catch (Exception e) {
-            e.printStackTrace(); // log to terminal
-            JOptionPane.showMessageDialog(null, "An error occurred while streaming sensor data.");
-        }
-    }).start();
-}
-
+        }).start();
+    }
 
     private void handleSendAlerts() {
         try {
+            // discover alert dispatcher service
             ServiceInfo serviceInfo = discoverService("_alert._tcp.local.", "AlertDispatcher");
             if (serviceInfo == null) return;
 
+            // connect to the server
             ManagedChannel channel = ManagedChannelBuilder
                     .forAddress(serviceInfo.getHostAddresses()[0], serviceInfo.getPort())
                     .usePlaintext()
                     .build();
 
+            // create stub
             FireAlertDispatcherServiceGrpc.FireAlertDispatcherServiceStub stub =
                     FireAlertDispatcherServiceGrpc.newStub(channel);
 
+            // define how to handle response
             StreamObserver<DispatchStatus> responseObserver = new StreamObserver<DispatchStatus>() {
                 @Override
                 public void onNext(DispatchStatus status) {
@@ -226,8 +232,8 @@ public class ForestGUI {
                 }
             };
 
+            // send 3 fake alerts
             StreamObserver<FireAlert> requestObserver = stub.sendAlerts(responseObserver);
-
             for (int i = 1; i <= 3; i++) {
                 FireAlert alert = FireAlert.newBuilder()
                         .setSensorId("sensor-" + i)
@@ -239,7 +245,7 @@ public class ForestGUI {
                 requestObserver.onNext(alert);
             }
 
-            requestObserver.onCompleted();
+            requestObserver.onCompleted(); // finish the stream
         } catch (Exception e) {
             JOptionPane.showMessageDialog(null, "Send Alerts failed.");
         }
@@ -247,6 +253,7 @@ public class ForestGUI {
 
     private ServiceInfo discoverService(String type, String name) {
         try {
+            // discover the service using jmDNS
             JmDNS jmdns = JmDNS.create(InetAddress.getLocalHost());
             return jmdns.getServiceInfo(type, name, 3000);
         } catch (Exception e) {
@@ -255,6 +262,6 @@ public class ForestGUI {
     }
 
     public static void main(String[] args) {
-        new ForestGUI();
+        new ForestGUI(); // run the app
     }
 }
